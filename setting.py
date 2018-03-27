@@ -1,39 +1,15 @@
 # coding: utf-8
 
-import os
-import tensorflow as tf
-
-# 训练集位置
-train_dir = r'D:\Captcha2\captcha_train'
-
-# 测试集位置
-test_dir = r'D:\Captcha2\test_images'
-
-# tensorboard logdir 位置
-logdir = './logs'
-
-# base model 位置
-base_model = tf.train.get_checkpoint_state(os.getcwd()).model_checkpoint_path
-
-# 最大字符长度
-MAX_CAPTCHA = 5
-
-# 图片高度
-IMAGE_HEIGHT = 60
-
-# 图片宽度
-IMAGE_WIDTH = 160
-
-# 字符集
+# CHAR SET
 number = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u',
             'v', 'w', 'x', 'y', 'z']
 ALPHABET = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U',
             'V', 'W', 'X', 'Y', 'Z']
-CHAR_SET = number + alphabet + ALPHABET + ['_']  # 如果验证码长度小于MAX_CAPTCHA, '_'用来补齐
+CHAR_SET = number + alphabet + ALPHABET + ['_']  # 如果验证码长度小于max_captcha, 可用'_'来补齐
 CHAR_SET_LEN = len(CHAR_SET)
 
-CHAR_SET_FOR_BATCH = number + alphabet + ALPHABET  # 生成验证码时不考虑空缺，所以不需要'_'
+CHAR_SET_FOR_GEN_CAPTCHA = number + alphabet + ALPHABET  # 生成验证码时不考虑空缺，所以不需要'_'
 
 # 字符和CHAR_SET列表下标互相转换
 char2index = {'0': 0, '1': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, 'a': 10, 'b': 11, 'c': 12,
