@@ -9,23 +9,60 @@ import tensorflow as tf
 
 class CrackCaptcha(object):
 
-    BASE_MODEL = tf.train.get_checkpoint_state(os.getcwd()).model_checkpoint_path
-
-    def __init__(self, train_dir=r'./train', test_dir=r'./test', logdir='./logs',
+    def __init__(self, images_dir=r'./images', train_dir=r'./train', test_dir=r'./test', logdir='./logs',
                  max_captcha=4, image_height=60, image_width=160):
+        self.images_dir = images_dir
         self.train_dir = train_dir
         self.test_dir = test_dir
         self.logdir = logdir
         self.max_captcha = max_captcha
         self.image_height = image_height
         self.image_width = image_width
+        print("Image Heigth: %d\nImage Width: %d\nMax length of Captcha: %d" %
+              (self.image_height, self.image_width, self.max_captcha))
+
         self.keep_prob = tf.placeholder(tf.float32)  # dropout
         with tf.name_scope('Input'):
             self.X = tf.placeholder(tf.float32, [None, self.image_height * self.image_width], name='X_INPUT')
             self.Y = tf.placeholder(tf.float32, [None, self.max_captcha * CHAR_SET_LEN], name='Y_INPUT')
 
-    # Convolutional Neural Networks
-    def convolutional_neural_networks(self, w_alpha=0.01, b_alpha=0.1):
+    # auto crack
+    def auto_crack(self, model=None, fine_tuning=True):
+        split(self.images_dir, self.train_dir, self.test_dir)
+        data_augmentation(self.train_dir, self.max_captcha)
+        if model is None:
+            if fine_tuning:
+                self.train_model()
+                self.fine_tuning_model()
+            else:
+                self.train_model(gen_captcha=False)
+        else:
+            if fine_tuning:
+                self.fine_tuning_model(base_model=model)
+
+        self.test_model()
+
+    def crack_one_image(self, image_file=None, image=None, model=tf.train.get_checkpoint_state(os.getcwd()).model_checkpoint_path):
+        output = self.convolutional_neural_network()[-1]
+        saver = tf.train.Saver()
+        with tf.Session() as sess:
+            sess.run(tf.global_variables_initializer())
+            saver.restore(sess, model)
+            if image is None:
+                image = Image.open(image_file)
+            image = array(image.resize((self.image_width, self.image_height)))
+            image_gray = convert2gray(image)
+            predict = tf.argmax(tf.reshape(output, [-1, self.max_captcha, CHAR_SET_LEN]), 2)
+            text = sess.run(predict, feed_dict={self.X: [image_gray.flatten() / 255], self.keep_prob: 1})[0]
+        vector = np.zeros(self.max_captcha * CHAR_SET_LEN)
+        i = 0
+        for n in text:
+            vector[i * CHAR_SET_LEN + n] = 1
+            i += 1
+        return vec2text(vector)
+
+    # Convolutional Neural Network
+    def convolutional_neural_network(self, w_alpha=0.01, b_alpha=0.1):
         with tf.name_scope('Input_reshape'):
             x = tf.reshape(self.X, shape=[-1, self.image_height, self.image_width, 1])
             image_op = tf.summary.image('input', x, 9)
@@ -87,18 +124,8 @@ class CrackCaptcha(object):
 
     # train model
     def train_model(self, gen_captcha=True, max_step=20000, learning_rate=0.001, acc_record=None, save_prefix='base_model'):
-        """
-        :param gen_captcha:
-        :param max_step:
-        :param learning_rate:
-        :param acc_record: None or a list
-        :param save_prefix:
-        :return:
-        """
-        if acc_record is None:
-            acc_record = [0.8]
+        loss, accuracy, loss_scalar, merge_op, _ = self.convolutional_neural_network()
 
-        loss, accuracy, loss_scalar, merge_op, _ = self.convolutional_neural_networks()
         with tf.name_scope('Optimizer'):
             optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(loss)
 
@@ -136,12 +163,10 @@ class CrackCaptcha(object):
 
             saver.save(sess, os.path.join(os.getcwd(), save_prefix + '_last.model'), global_step=step)
 
-    def fine_tuning_model(self, max_step=12000, base_model=BASE_MODEL, max_restore_var=4, learning_rate_for_restore=0.0001,
-                        learning_rate_for_train=0.001, acc_record=None, save_prefix='fine_tuning_model'):
-        if acc_record is None:
-            acc_record = [0.8]
-
-        loss, accuracy, loss_scalar, merge_op, _ = self.convolutional_neural_networks()
+    def fine_tuning_model(self, max_step=20000, base_model=tf.train.get_checkpoint_state(os.getcwd()).model_checkpoint_path,
+                          max_restore_var=4, learning_rate_for_restore=0.0001, learning_rate_for_train=0.001,
+                          acc_record=None, save_prefix='fine_tuning_model'):
+        loss, accuracy, loss_scalar, merge_op, _ = self.convolutional_neural_network()
 
         all_vars = tf.trainable_variables()
         var_to_restore = []
@@ -194,8 +219,8 @@ class CrackCaptcha(object):
 
             saver.save(sess, os.path.join(os.getcwd(), save_prefix + '_last.model'), global_step=step)
 
-    def test_model(self, model=BASE_MODEL, test_num=None, result_dir=None):
-        output = self.convolutional_neural_networks()[-1]
+    def test_model(self, model=tf.train.get_checkpoint_state(os.getcwd()).model_checkpoint_path, test_num=None, result_dir=None):
+        output = self.convolutional_neural_network()[-1]
 
         saver = tf.train.Saver()
         with tf.Session() as sess:
@@ -246,34 +271,10 @@ class CrackCaptcha(object):
 
 
 if __name__ == '__main__':
-    CrackCaptcha = CrackCaptcha(test_dir=r'./test_2')
-    print("Image Heigth: %d\nImage Width: %d" % (CrackCaptcha.image_height, CrackCaptcha.image_width))
-    print("Max length of Captcha: %d" % CrackCaptcha.max_captcha)
-    CrackCaptcha.test_model()
-    # train_model(gen_captcha=False, save_prefix='captcha2_5num_train')
-    # fine_tuning_model(base_model='./base_model_gray_0.8.model-10000', max_step=20000, max_restore_var=4, save_prefix='2400_4restore')
-    # fine_tuning_model(base_model='./base_model_gray_0.8.model-10000', max_step=20000, max_restore_var=6, save_prefix='2400_6restore')
-    # fine_tuning_model(base_model='./base_model_gray_0.8.model-10000', max_step=20000, max_restore_var=8, save_prefix='2400_8restore')
-    # test_model()
-    # fine_tuning(12000)
+    CrackCaptcha = CrackCaptcha()
+    # CrackCaptcha.train_model()
+    # CrackCaptcha.fine_tuning_model()
+    # CrackCaptcha.test_model()
+    # image = Image.open('./test_2/0jf0.jpg')
+    # print(CrackCaptcha.crack_one_image('./test_2/0jf0.jpg'))
 
-    # text, image = gen_captcha_text_and_image()
-    # predict_text = crack_captcha(convert2gray(image).flatten() / 255)
-    # print("正确: {}  预测: {}".format(text, predict_text))
-    # f = plt.figure()
-    # ax = f.add_subplot(111)
-    # ax.text(0.1, 0.9, predict_text, ha='center', va='center', transform=ax.transAxes)
-    # plt.imshow(convert2gray(image))
-    # plt.show()
-
-    # img = array(Image.open(r'D:\CaptchaVariLength-master\data\images\four_digit\\' + '0j4n.png').resize((160, 60)))
-    # plt.imshow(convert2gray(img))
-    # plt.show()
-    # predict_text = crack_captcha(convert2gray(img).flatten() / 255)
-    # print(predict_text)
-
-    # g = get_next_image(32)
-    # for i in range(2):
-    #     batch_x, batch_y = next(g)
-
-    # train_more(15000)

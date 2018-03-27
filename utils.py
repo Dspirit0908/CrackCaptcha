@@ -42,7 +42,7 @@ def convert2gray(image):
         return image
 
 
-def data_augmentation(pics_dir, max_captcha, image_data_generator=None):
+def data_augmentation(images_dir, max_captcha, image_data_generator=None):
     if isinstance(image_data_generator, ImageDataGenerator):
         data_generator = image_data_generator
     else:
@@ -56,15 +56,15 @@ def data_augmentation(pics_dir, max_captcha, image_data_generator=None):
             fill_mode='nearest',
         )
 
-    images_list = os.listdir(pics_dir)
+    images_list = os.listdir(images_dir)
     for image_file_name in images_list:
-        image_file = os.path.join(pics_dir, image_file_name)
+        image_file = os.path.join(images_dir, image_file_name)
         image = load_img(image_file)
         x = img_to_array(image)  # this is a Numpy array with shape (IMAGE_HEIGHT, IMAGE_WIDTH, 3)
         x = x.reshape((1,) + x.shape)  # this is a Numpy array with shape (1, IMAGE_HEIGHT, IMAGE_WIDTH, 3)
 
         i = 0
-        for batch in data_generator.flow(x, batch_size=1, save_to_dir=pics_dir,
+        for batch in data_generator.flow(x, batch_size=1, save_to_dir=images_dir,
                                          save_prefix=image_file_name[0:max_captcha], save_format=image_file_name[-3:]):
             i += 1
             if i >= 9:
@@ -97,8 +97,8 @@ def get_next_batch(max_captcha, image_height, image_width, batch_size=64):
     return batch_x, batch_y
 
 
-def get_next_image(pics_dir, max_captcha, image_height, image_width, batch_size=64):
-    image_list = os.listdir(pics_dir)
+def get_next_image(images_dir, max_captcha, image_height, image_width, batch_size=64):
+    image_list = os.listdir(images_dir)
     random.shuffle(image_list)
 
     batch_x = np.zeros([batch_size, image_height * image_width])
@@ -106,7 +106,7 @@ def get_next_image(pics_dir, max_captcha, image_height, image_width, batch_size=
 
     for i in range(batch_size):
         image_file_name = image_list[i]
-        image_file = os.path.join(pics_dir, image_file_name)
+        image_file = os.path.join(images_dir, image_file_name)
         image = array(Image.open(image_file).resize((image_width, image_height)))
         image_gray = convert2gray(image)
 
